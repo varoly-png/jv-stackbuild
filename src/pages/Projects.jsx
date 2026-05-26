@@ -30,6 +30,7 @@ export default function Projects() {
   const [search, setSearch] = useState('')
   const [fields, setFields] = useState(BLANK)
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const set = (key) => (e) => {
@@ -37,7 +38,7 @@ export default function Projects() {
     setErrors((prev) => ({ ...prev, [key]: '' }))
   }
 
-  const openModal = () => { setFields(BLANK); setErrors({}); setShowModal(true) }
+  const openModal = () => { setFields(BLANK); setErrors({}); setServerError(''); setShowModal(true) }
   const closeModal = () => setShowModal(false)
 
   const validate = () => {
@@ -50,10 +51,16 @@ export default function Projects() {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
+    setServerError('')
     setSubmitting(true)
-    await createProject(fields)
-    setSubmitting(false)
-    closeModal()
+    try {
+      await createProject(fields)
+      closeModal()
+    } catch (err) {
+      setServerError(err?.message ?? 'Failed to create project. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const filtered = projects.filter((p) => {
@@ -191,6 +198,11 @@ export default function Projects() {
               <Textarea label="Description" placeholder="Project scope and notes…" rows={3} value={fields.description} onChange={set('description')} />
             </div>
           </div>
+          {serverError && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              {serverError}
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={closeModal}>Cancel</Button>
             <Button type="submit" disabled={submitting}>
