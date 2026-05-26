@@ -6,6 +6,8 @@ import {
   PencilIcon,
   ArrowLeftIcon,
   ClipboardDocumentListIcon,
+  SparklesIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 import { useProjects } from '@/hooks/useProjects'
 import { useTakeoff } from '@/hooks/useTakeoff'
@@ -16,6 +18,7 @@ import { Input, Select, Textarea } from '@/components/UI/Input'
 import { EmptyState } from '@/components/UI/EmptyState'
 import { PageSpinner } from '@/components/UI/Spinner'
 import { formatNumber, formatDate } from '@/utils/formatters'
+import { AITakeoffTab, AIDescribeTab } from '@/components/AITakeoffTab'
 
 const CSI_DIVISIONS = [
   '01 - General Requirements',
@@ -47,18 +50,47 @@ const UNITS = ['SF', 'LF', 'EA', 'CY', 'SY', 'CF', 'TON', 'LB', 'GAL', 'LS', 'HR
 
 const BLANK_ITEM = { division: CSI_DIVISIONS[0], description: '', quantity: '', unit: 'SF', notes: '' }
 
+const TABS = [
+  { id: 'takeoff', label: 'Takeoff Sheet', icon: ClipboardDocumentListIcon },
+  { id: 'ai-vision', label: 'AI Takeoff', icon: SparklesIcon },
+  { id: 'ai-describe', label: 'AI Description', icon: ChatBubbleLeftRightIcon },
+]
+
+function categoryToDivision(category) {
+  if (!category) return CSI_DIVISIONS[0]
+  const lower = category.toLowerCase()
+  if (lower.includes('concrete') || lower.includes('foundation') || lower.includes('slab')) return '03 - Concrete'
+  if (lower.includes('masonry') || lower.includes('brick') || lower.includes('block')) return '04 - Masonry'
+  if (lower.includes('metal') || lower.includes('steel') || lower.includes('rebar')) return '05 - Metals'
+  if (lower.includes('wood') || lower.includes('lumber') || lower.includes('framing') || lower.includes('carpentry')) return '06 - Wood, Plastics & Composites'
+  if (lower.includes('roof') || lower.includes('insulation') || lower.includes('waterproof')) return '07 - Thermal & Moisture Protection'
+  if (lower.includes('door') || lower.includes('window') || lower.includes('opening')) return '08 - Openings'
+  if (lower.includes('finish') || lower.includes('drywall') || lower.includes('paint') || lower.includes('flooring') || lower.includes('tile') || lower.includes('cabinet')) return '09 - Finishes'
+  if (lower.includes('plumb') || lower.includes('pipe') || lower.includes('drain')) return '22 - Plumbing'
+  if (lower.includes('hvac') || lower.includes('mechanical') || lower.includes('air')) return '23 - HVAC'
+  if (lower.includes('electric') || lower.includes('wiring') || lower.includes('conduit')) return '26 - Electrical'
+  if (lower.includes('earthwork') || lower.includes('excavat') || lower.includes('grading') || lower.includes('fill')) return '31 - Earthwork'
+  if (lower.includes('paving') || lower.includes('landscape') || lower.includes('fence') || lower.includes('pergola')) return '32 - Exterior Improvements'
+  if (lower.includes('utilities') || lower.includes('sewer') || lower.includes('water main')) return '33 - Utilities'
+  if (lower.includes('general') || lower.includes('misc') || lower.includes('equipment rental') || lower.includes('scaffold')) return '01 - General Requirements'
+  return CSI_DIVISIONS[0]
+}
+
 export default function ProjectDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { projects, loading: pLoading, deleteProject } = useProjects()
   const { items, loading: tLoading, addItem, updateItem, deleteItem } = useTakeoff(id)
 
+  const [activeTab, setActiveTab] = useState('takeoff')
   const [showAddItem, setShowAddItem] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [fields, setFields] = useState(BLANK_ITEM)
   const [errors, setErrors] = useState({})
   const [serverError, setServerError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [addingBulk, setAddingBulk] = useState(false)
+  const [bulkSuccess, setBulkSuccess] = useState('')
 
   const project = projects.find((p) => p.id === id)
 
@@ -136,6 +168,28 @@ export default function ProjectDetail() {
     navigate('/projects')
   }
 
+  const handleAddAIItems = async (aiItems) => {
+    setAddingBulk(true)
+    setBulkSuccess('')
+    try {
+      for (const aiItem of aiItems) {
+        await addItem({
+          division: categoryToDivision(aiItem.category),
+          description: aiItem.description,
+          quantity: Number(aiItem.quantity) || 1,
+          unit: aiItem.unit || 'EA',
+          notes: aiItem.category ? `AI: ${aiItem.category}` : 'Added via AI',
+        })
+      }
+      setBulkSuccess(`${aiItems.length} item${aiItems.length !== 1 ? 's' : ''} added to Takeoff Sheet.`)
+      setActiveTab('takeoff')
+    } catch (err) {
+      setBulkSuccess(`Error: ${err.message}`)
+    } finally {
+      setAddingBulk(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full animate-fade-in">
       {/* Header */}
@@ -160,74 +214,70 @@ export default function ProjectDetail() {
           <Link to={`/estimates?project=${id}`}>
             <Button variant="secondary">View Estimates</Button>
           </Link>
-          <Button onClick={openAdd}>
-            <PlusIcon className="h-4 w-4" />
-            Add Takeoff Item
-          </Button>
+          {activeTab === 'takeoff' && (
+            <Button onClick={openAdd}>
+              <PlusIcon className="h-4 w-4" />
+              Add Takeoff Item
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={handleDelete} title="Delete project" className="text-red-500 hover:bg-red-500/10">
             <TrashIcon className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* Takeoff sheet */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="section-title">Takeoff Sheet</h3>
-          <span className="text-xs text-gray-500">{items.length} item{items.length !== 1 ? 's' : ''}</span>
-        </div>
+      {/* Tabs */}
+      <div className="flex items-center gap-1 border-b border-surface-border px-6 pt-2">
+        {TABS.map(({ id: tabId, label, icon: Icon }) => (
+          <button
+            key={tabId}
+            onClick={() => { setActiveTab(tabId); setBulkSuccess('') }}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === tabId
+                ? 'border-brand-orange text-brand-orange'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+      </div>
 
-        {items.length === 0 ? (
-          <EmptyState
-            icon={ClipboardDocumentListIcon}
-            title="No takeoff items yet"
-            description="Start adding quantities by CSI division to build your takeoff sheet."
-            action={<Button onClick={openAdd}><PlusIcon className="h-4 w-4" />Add First Item</Button>}
-          />
-        ) : (
-          <div className="space-y-4">
-            {Object.entries(grouped).map(([division, divItems]) => (
-              <div key={division} className="card">
-                <div className="mb-3 flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-brand-orange" />
-                  <h4 className="text-sm font-semibold text-brand-orange">{division}</h4>
-                  <span className="text-xs text-gray-600">({divItems.length})</span>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-surface-border text-left">
-                      <th className="pb-2 text-xs font-medium text-gray-500 w-1/2">Description</th>
-                      <th className="pb-2 text-xs font-medium text-gray-500">Quantity</th>
-                      <th className="pb-2 text-xs font-medium text-gray-500">Unit</th>
-                      <th className="pb-2 text-xs font-medium text-gray-500">Notes</th>
-                      <th className="pb-2 w-16" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {divItems.map((item) => (
-                      <tr key={item.id} className="table-row">
-                        <td className="py-2.5 pr-4 font-medium text-white">{item.description}</td>
-                        <td className="py-2.5 pr-4 font-mono text-gray-300">{formatNumber(item.quantity)}</td>
-                        <td className="py-2.5 pr-4 text-gray-400">{item.unit}</td>
-                        <td className="py-2.5 pr-4 text-gray-500 text-xs">{item.notes || '—'}</td>
-                        <td className="py-2.5">
-                          <div className="flex gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
-                              <PencilIcon className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => deleteItem(item.id)}
-                              className="text-red-500 hover:bg-red-500/10">
-                              <TrashIcon className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
+      {/* Tab content */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {bulkSuccess && (
+          <div className="mb-4 rounded-lg border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+            {bulkSuccess}
           </div>
+        )}
+
+        {addingBulk && (
+          <div className="mb-4 flex items-center gap-3 text-sm text-gray-400">
+            <svg className="h-4 w-4 animate-spin text-brand-orange" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Adding items to takeoff sheet…
+          </div>
+        )}
+
+        {activeTab === 'takeoff' && (
+          <TakeoffSheetTab
+            items={items}
+            grouped={grouped}
+            openAdd={openAdd}
+            openEdit={openEdit}
+            deleteItem={deleteItem}
+          />
+        )}
+
+        {activeTab === 'ai-vision' && (
+          <AITakeoffTab onAddItems={handleAddAIItems} />
+        )}
+
+        {activeTab === 'ai-describe' && (
+          <AIDescribeTab onAddItems={handleAddAIItems} />
         )}
       </div>
 
@@ -282,6 +332,70 @@ export default function ProjectDetail() {
           </div>
         </form>
       </Modal>
+    </div>
+  )
+}
+
+function TakeoffSheetTab({ items, grouped, openAdd, openEdit, deleteItem }) {
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="section-title">Takeoff Sheet</h3>
+        <span className="text-xs text-gray-500">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      {items.length === 0 ? (
+        <EmptyState
+          icon={ClipboardDocumentListIcon}
+          title="No takeoff items yet"
+          description="Start adding quantities by CSI division to build your takeoff sheet."
+          action={<Button onClick={openAdd}><PlusIcon className="h-4 w-4" />Add First Item</Button>}
+        />
+      ) : (
+        <div className="space-y-4">
+          {Object.entries(grouped).map(([division, divItems]) => (
+            <div key={division} className="card">
+              <div className="mb-3 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-brand-orange" />
+                <h4 className="text-sm font-semibold text-brand-orange">{division}</h4>
+                <span className="text-xs text-gray-600">({divItems.length})</span>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-surface-border text-left">
+                    <th className="pb-2 text-xs font-medium text-gray-500 w-1/2">Description</th>
+                    <th className="pb-2 text-xs font-medium text-gray-500">Quantity</th>
+                    <th className="pb-2 text-xs font-medium text-gray-500">Unit</th>
+                    <th className="pb-2 text-xs font-medium text-gray-500">Notes</th>
+                    <th className="pb-2 w-16" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {divItems.map((item) => (
+                    <tr key={item.id} className="table-row">
+                      <td className="py-2.5 pr-4 font-medium text-white">{item.description}</td>
+                      <td className="py-2.5 pr-4 font-mono text-gray-300">{formatNumber(item.quantity)}</td>
+                      <td className="py-2.5 pr-4 text-gray-400">{item.unit}</td>
+                      <td className="py-2.5 pr-4 text-gray-500 text-xs">{item.notes || '—'}</td>
+                      <td className="py-2.5">
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
+                            <PencilIcon className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => deleteItem(item.id)}
+                            className="text-red-500 hover:bg-red-500/10">
+                            <TrashIcon className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
