@@ -57,6 +57,7 @@ export default function ProjectDetail() {
   const [editingItem, setEditingItem] = useState(null)
   const [fields, setFields] = useState(BLANK_ITEM)
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const project = projects.find((p) => p.id === id)
@@ -85,6 +86,7 @@ export default function ProjectDetail() {
   const openAdd = () => {
     setFields(BLANK_ITEM)
     setErrors({})
+    setServerError('')
     setEditingItem(null)
     setShowAddItem(true)
   }
@@ -114,12 +116,18 @@ export default function ProjectDetail() {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
+    setServerError('')
     setSubmitting(true)
-    const payload = { ...fields, quantity: Number(fields.quantity) }
-    if (editingItem) await updateItem(editingItem.id, payload)
-    else await addItem(payload)
-    setSubmitting(false)
-    setShowAddItem(false)
+    try {
+      const payload = { ...fields, quantity: Number(fields.quantity) }
+      if (editingItem) await updateItem(editingItem.id, payload)
+      else await addItem(payload)
+      setShowAddItem(false)
+    } catch (err) {
+      setServerError(err?.message ?? 'Failed to save item. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleDelete = async () => {
@@ -261,6 +269,11 @@ export default function ProjectDetail() {
             value={fields.notes}
             onChange={set('notes')}
           />
+          {serverError && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              {serverError}
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setShowAddItem(false)}>Cancel</Button>
             <Button type="submit" disabled={submitting}>

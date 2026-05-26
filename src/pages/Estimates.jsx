@@ -29,6 +29,7 @@ export default function Estimates() {
   }
   const [fields, setFields] = useState(BLANK)
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const set = (key) => (e) => {
@@ -36,7 +37,7 @@ export default function Estimates() {
     setErrors((prev) => ({ ...prev, [key]: '' }))
   }
 
-  const openModal = () => { setFields(BLANK); setErrors({}); setShowModal(true) }
+  const openModal = () => { setFields(BLANK); setErrors({}); setServerError(''); setShowModal(true) }
   const closeModal = () => setShowModal(false)
 
   const validate = () => {
@@ -50,14 +51,20 @@ export default function Estimates() {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
+    setServerError('')
     setSubmitting(true)
-    await createEstimate({
-      ...fields,
-      overhead_percent: Number(fields.overhead_percent),
-      profit_percent: Number(fields.profit_percent),
-    })
-    setSubmitting(false)
-    closeModal()
+    try {
+      await createEstimate({
+        ...fields,
+        overhead_percent: Number(fields.overhead_percent),
+        profit_percent: Number(fields.profit_percent),
+      })
+      closeModal()
+    } catch (err) {
+      setServerError(err?.message ?? 'Failed to create estimate. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const filtered = estimates.filter((e) => {
@@ -207,6 +214,11 @@ export default function Estimates() {
             value={fields.notes}
             onChange={set('notes')}
           />
+          {serverError && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              {serverError}
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={closeModal}>Cancel</Button>
             <Button type="submit" disabled={submitting}>

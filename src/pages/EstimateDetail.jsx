@@ -43,6 +43,7 @@ export default function EstimateDetail() {
   const [editingLine, setEditingLine] = useState(null)
   const [fields, setFields] = useState(BLANK_LINE)
   const [errors, setErrors] = useState({})
+  const [serverError, setServerError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const set = (key) => (e) => {
@@ -72,6 +73,7 @@ export default function EstimateDetail() {
   const openAdd = () => {
     setFields(BLANK_LINE)
     setErrors({})
+    setServerError('')
     setEditingLine(null)
     setShowAddLine(true)
   }
@@ -104,18 +106,24 @@ export default function EstimateDetail() {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
+    setServerError('')
     setSubmitting(true)
-    const payload = {
-      ...fields,
-      quantity: Number(fields.quantity),
-      material_unit_cost: Number(fields.material_unit_cost),
-      labor_unit_cost: Number(fields.labor_unit_cost),
-      subcontractor_cost: Number(fields.subcontractor_cost),
+    try {
+      const payload = {
+        ...fields,
+        quantity: Number(fields.quantity),
+        material_unit_cost: Number(fields.material_unit_cost),
+        labor_unit_cost: Number(fields.labor_unit_cost),
+        subcontractor_cost: Number(fields.subcontractor_cost),
+      }
+      if (editingLine) await updateLineItem(editingLine.id, payload)
+      else await addLineItem(payload)
+      setShowAddLine(false)
+    } catch (err) {
+      setServerError(err?.message ?? 'Failed to save line item. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
-    if (editingLine) await updateLineItem(editingLine.id, payload)
-    else await addLineItem(payload)
-    setSubmitting(false)
-    setShowAddLine(false)
   }
 
   const updateStatus = async (status) => {
@@ -324,6 +332,11 @@ export default function EstimateDetail() {
             value={fields.notes}
             onChange={set('notes')}
           />
+          {serverError && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              {serverError}
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setShowAddLine(false)}>Cancel</Button>
             <Button type="submit" disabled={submitting}>

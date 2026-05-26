@@ -21,9 +21,11 @@ export function useProjects() {
   useEffect(() => { fetchProjects() }, [fetchProjects])
 
   const createProject = async (fields) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
     const { data, error } = await supabase
       .from('projects')
-      .insert([fields])
+      .insert([{ ...fields, user_id: user.id }])
       .select()
       .single()
     if (error) throw error
