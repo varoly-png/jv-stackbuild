@@ -1,24 +1,38 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
 import { useAuth } from '@/context/AuthContext'
-import { Input } from '@/components/UI/Input'
 import { Button } from '@/components/UI/Button'
 import { Spinner } from '@/components/UI/Spinner'
 
 export default function Login() {
   const { session, signIn, signUp } = useAuth()
-  const [mode, setMode] = useState('login') // 'login' | 'signup'
+  const [mode, setMode] = useState('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [errors, setErrors] = useState({})
   const [serverError, setServerError] = useState('')
   const [success, setSuccess] = useState('')
-
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm()
+  const [submitting, setSubmitting] = useState(false)
 
   if (session) return <Navigate to="/" replace />
 
-  const onSubmit = async ({ email, password }) => {
+  const validate = () => {
+    const next = {}
+    if (!email.trim()) next.email = 'Email is required'
+    else if (!/\S+@\S+\.\S+/.test(email)) next.email = 'Invalid email address'
+    if (!password) next.password = 'Password is required'
+    else if (password.length < 8) next.password = 'Password must be at least 8 characters'
+    return next
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
     setServerError('')
     setSuccess('')
+    const fieldErrors = validate()
+    if (Object.keys(fieldErrors).length) { setErrors(fieldErrors); return }
+    setErrors({})
+    setSubmitting(true)
     if (mode === 'login') {
       const { error } = await signIn(email, password)
       if (error) setServerError(error.message)
@@ -27,6 +41,14 @@ export default function Login() {
       if (error) setServerError(error.message)
       else setSuccess('Account created! Check your email to confirm before signing in.')
     }
+    setSubmitting(false)
+  }
+
+  const switchMode = () => {
+    setMode((m) => (m === 'login' ? 'signup' : 'login'))
+    setErrors({})
+    setServerError('')
+    setSuccess('')
   }
 
   return (
@@ -48,29 +70,34 @@ export default function Login() {
           {mode === 'login' ? 'Sign in to your account' : 'Create an account'}
         </h2>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Input
-            label="Email address"
-            type="email"
-            placeholder="you@company.com"
-            autoComplete="email"
-            error={errors.email?.message}
-            {...register('email', {
-              required: 'Email is required',
-              pattern: { value: /\S+@\S+\.\S+/, message: 'Invalid email' },
-            })}
-          />
-          <Input
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            error={errors.password?.message}
-            {...register('password', {
-              required: 'Password is required',
-              minLength: { value: 8, message: 'Password must be at least 8 characters' },
-            })}
-          />
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="form-label" htmlFor="email">Email address</label>
+            <input
+              id="email"
+              type="email"
+              placeholder="you@company.com"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setErrors((prev) => ({ ...prev, email: '' })) }}
+              className={`form-input ${errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+            />
+            {errors.email && <p className="text-xs text-red-400">{errors.email}</p>}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="form-label" htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setErrors((prev) => ({ ...prev, password: '' })) }}
+              className={`form-input ${errors.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+            />
+            {errors.password && <p className="text-xs text-red-400">{errors.password}</p>}
+          </div>
 
           {serverError && (
             <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
@@ -83,18 +110,15 @@ export default function Login() {
             </div>
           )}
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? <Spinner className="h-4 w-4" /> : null}
+          <Button type="submit" className="w-full" disabled={submitting}>
+            {submitting ? <Spinner className="h-4 w-4" /> : null}
             {mode === 'login' ? 'Sign In' : 'Create Account'}
           </Button>
         </form>
 
         <p className="mt-5 text-center text-sm text-gray-500">
           {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-          <button
-            onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setServerError(''); setSuccess('') }}
-            className="font-medium text-brand-orange hover:underline"
-          >
+          <button onClick={switchMode} className="font-medium text-brand-orange hover:underline">
             {mode === 'login' ? 'Sign Up' : 'Sign In'}
           </button>
         </p>
