@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   if (!base64 || !mediaType) return res.status(400).json({ error: 'base64 and mediaType required' })
 
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
 
   try {
     const filePart = { inlineData: { data: base64, mimeType: mediaType } }
