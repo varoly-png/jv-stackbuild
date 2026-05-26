@@ -1,6 +1,28 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 
+// Normalise any date string to YYYY-MM-DD for Postgres, or null if empty.
+// Handles both the native <input type="date"> format (YYYY-MM-DD) and the
+// locale-formatted MM/DD/YYYY that some browsers produce.
+function toISODate(val) {
+  if (!val || !String(val).trim()) return null
+  const s = String(val).trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+    const [m, d, y] = s.split('/')
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+  return null
+}
+
+function sanitiseDates(fields) {
+  const out = { ...fields }
+  for (const key of ['bid_date', 'start_date', 'end_date']) {
+    if (key in out) out[key] = toISODate(out[key])
+  }
+  return out
+}
+
 export function useProjects() {
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
@@ -32,7 +54,7 @@ export function useProjects() {
       throw new Error('Not authenticated')
     }
 
-    const payload = { ...fields, user_id: user.id }
+    const payload = { ...sanitiseDates(fields), user_id: user.id }
     console.log('[createProject] inserting payload:', payload)
 
     const result = await supabase
@@ -51,7 +73,7 @@ export function useProjects() {
   const updateProject = async (id, fields) => {
     const { data, error } = await supabase
       .from('projects')
-      .update({ ...fields, updated_at: new Date().toISOString() })
+      .update({ ...sanitiseDates(fields), updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single()
