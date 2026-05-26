@@ -3,7 +3,7 @@ import { ArrowUpTrayIcon, SparklesIcon, PlusIcon, TrashIcon } from '@heroicons/r
 import { Button } from '@/components/UI/Button'
 import { formatCurrency } from '@/utils/formatters'
 
-const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp']
 
 export function AITakeoffTab({ onAddItems }) {
   const [file, setFile] = useState(null)
@@ -16,7 +16,7 @@ export function AITakeoffTab({ onAddItems }) {
   const handleFile = (f) => {
     if (!f) return
     if (!ACCEPTED.includes(f.type)) {
-      setError('Please upload a PDF, JPG, or PNG file.')
+      setError('Please upload a JPG, PNG, or WebP image.')
       return
     }
     if (f.size > 10 * 1024 * 1024) {
@@ -92,7 +92,7 @@ export function AITakeoffTab({ onAddItems }) {
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf,.jpg,.jpeg,.png,.webp"
+          accept=".jpg,.jpeg,.png,.webp"
           className="hidden"
           onChange={(e) => handleFile(e.target.files[0])}
         />
@@ -105,7 +105,7 @@ export function AITakeoffTab({ onAddItems }) {
         ) : (
           <div className="text-center">
             <p className="text-sm text-gray-400">Drag & drop or click to upload</p>
-            <p className="text-xs text-gray-600 mt-1">PDF, JPG, PNG — max 10 MB</p>
+            <p className="text-xs text-gray-600 mt-1">JPG, PNG, WebP — max 10 MB</p>
           </div>
         )}
       </div>
