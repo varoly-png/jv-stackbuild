@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
 import {
   PlusIcon,
   TrashIcon,
@@ -29,6 +28,12 @@ const CSI_DIVISIONS = [
   '31 - Earthwork', '32 - Exterior Improvements', '33 - Utilities',
 ]
 
+const BLANK_LINE = {
+  division: CSI_DIVISIONS[0], description: '', quantity: '',
+  unit: 'SF', material_unit_cost: '0', labor_unit_cost: '0',
+  subcontractor_cost: '0', notes: '',
+}
+
 export default function EstimateDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -36,10 +41,14 @@ export default function EstimateDetail() {
 
   const [showAddLine, setShowAddLine] = useState(false)
   const [editingLine, setEditingLine] = useState(null)
+  const [fields, setFields] = useState(BLANK_LINE)
+  const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
-    defaultValues: { division: CSI_DIVISIONS[0], unit: 'SF', quantity: '', material_unit_cost: '', labor_unit_cost: '', subcontractor_cost: '' },
-  })
+  const set = (key) => (e) => {
+    setFields((prev) => ({ ...prev, [key]: e.target.value }))
+    setErrors((prev) => ({ ...prev, [key]: '' }))
+  }
 
   if (loading) return <PageSpinner />
   if (!estimate) return (
@@ -60,25 +69,62 @@ export default function EstimateDetail() {
     return acc
   }, {})
 
-  const openAdd = () => { reset({ division: CSI_DIVISIONS[0], unit: 'SF', quantity: '', material_unit_cost: 0, labor_unit_cost: 0, subcontractor_cost: 0 }); setEditingLine(null); setShowAddLine(true) }
-  const openEdit = (item) => { reset(item); setEditingLine(item); setShowAddLine(true) }
+  const openAdd = () => {
+    setFields(BLANK_LINE)
+    setErrors({})
+    setEditingLine(null)
+    setShowAddLine(true)
+  }
 
-  const onSubmit = async (data) => {
+  const openEdit = (item) => {
+    setFields({
+      division: item.division ?? CSI_DIVISIONS[0],
+      description: item.description,
+      quantity: String(item.quantity),
+      unit: item.unit,
+      material_unit_cost: String(item.material_unit_cost ?? 0),
+      labor_unit_cost: String(item.labor_unit_cost ?? 0),
+      subcontractor_cost: String(item.subcontractor_cost ?? 0),
+      notes: item.notes ?? '',
+    })
+    setErrors({})
+    setEditingLine(item)
+    setShowAddLine(true)
+  }
+
+  const validate = () => {
+    const next = {}
+    if (!fields.description.trim()) next.description = 'Description is required'
+    if (fields.quantity === '' || isNaN(Number(fields.quantity))) next.quantity = 'Valid quantity is required'
+    else if (Number(fields.quantity) < 0) next.quantity = 'Must be ≥ 0'
+    return next
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    setSubmitting(true)
     const payload = {
-      ...data,
-      quantity: Number(data.quantity),
-      material_unit_cost: Number(data.material_unit_cost),
-      labor_unit_cost: Number(data.labor_unit_cost),
-      subcontractor_cost: Number(data.subcontractor_cost),
+      ...fields,
+      quantity: Number(fields.quantity),
+      material_unit_cost: Number(fields.material_unit_cost),
+      labor_unit_cost: Number(fields.labor_unit_cost),
+      subcontractor_cost: Number(fields.subcontractor_cost),
     }
     if (editingLine) await updateLineItem(editingLine.id, payload)
     else await addLineItem(payload)
+    setSubmitting(false)
     setShowAddLine(false)
-    reset()
   }
 
   const updateStatus = async (status) => {
-    const { data, error } = await supabase.from('estimates').update({ status, updated_at: new Date().toISOString() }).eq('id', id).select().single()
+    const { data, error } = await supabase
+      .from('estimates')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
     if (!error) setEstimate(data)
   }
 
@@ -240,15 +286,16 @@ export default function EstimateDetail() {
         title={editingLine ? 'Edit Line Item' : 'Add Line Item'}
         size="lg"
       >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Select label="CSI Division" {...register('division')}>
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <Select label="CSI Division" value={fields.division} onChange={set('division')}>
             {CSI_DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
           </Select>
           <Input
             label="Description *"
             placeholder="e.g. 3000 PSI Concrete Foundation Walls"
-            error={errors.description?.message}
-            {...register('description', { required: 'Description is required' })}
+            value={fields.description}
+            onChange={set('description')}
+            error={errors.description}
           />
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -257,23 +304,30 @@ export default function EstimateDetail() {
               step="any"
               min="0"
               placeholder="0"
-              error={errors.quantity?.message}
-              {...register('quantity', { required: 'Required' })}
+              value={fields.quantity}
+              onChange={set('quantity')}
+              error={errors.quantity}
             />
-            <Select label="Unit" {...register('unit')}>
+            <Select label="Unit" value={fields.unit} onChange={set('unit')}>
               {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </Select>
           </div>
           <div className="grid grid-cols-3 gap-4">
-            <Input label="Material $/Unit" type="number" step="0.01" min="0" placeholder="0.00" {...register('material_unit_cost')} />
-            <Input label="Labor $/Unit" type="number" step="0.01" min="0" placeholder="0.00" {...register('labor_unit_cost')} />
-            <Input label="Subcontractor $" type="number" step="0.01" min="0" placeholder="0.00" {...register('subcontractor_cost')} />
+            <Input label="Material $/Unit" type="number" step="0.01" min="0" placeholder="0.00" value={fields.material_unit_cost} onChange={set('material_unit_cost')} />
+            <Input label="Labor $/Unit" type="number" step="0.01" min="0" placeholder="0.00" value={fields.labor_unit_cost} onChange={set('labor_unit_cost')} />
+            <Input label="Subcontractor $" type="number" step="0.01" min="0" placeholder="0.00" value={fields.subcontractor_cost} onChange={set('subcontractor_cost')} />
           </div>
-          <Textarea label="Notes" placeholder="Spec section, assumptions…" rows={2} {...register('notes')} />
+          <Textarea
+            label="Notes"
+            placeholder="Spec section, assumptions…"
+            rows={2}
+            value={fields.notes}
+            onChange={set('notes')}
+          />
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setShowAddLine(false)}>Cancel</Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving…' : editingLine ? 'Update Item' : 'Add Item'}
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Saving…' : editingLine ? 'Update Item' : 'Add Item'}
             </Button>
           </div>
         </form>

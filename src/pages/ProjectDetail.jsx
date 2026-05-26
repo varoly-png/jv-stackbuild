@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
 import {
   PlusIcon,
   TrashIcon,
@@ -46,6 +45,8 @@ const CSI_DIVISIONS = [
 
 const UNITS = ['SF', 'LF', 'EA', 'CY', 'SY', 'CF', 'TON', 'LB', 'GAL', 'LS', 'HR', 'DAY']
 
+const BLANK_ITEM = { division: CSI_DIVISIONS[0], description: '', quantity: '', unit: 'SF', notes: '' }
+
 export default function ProjectDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -54,12 +55,16 @@ export default function ProjectDetail() {
 
   const [showAddItem, setShowAddItem] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
+  const [fields, setFields] = useState(BLANK_ITEM)
+  const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
 
   const project = projects.find((p) => p.id === id)
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
-    defaultValues: { division: CSI_DIVISIONS[0], unit: 'SF', quantity: '' },
-  })
+  const set = (key) => (e) => {
+    setFields((prev) => ({ ...prev, [key]: e.target.value }))
+    setErrors((prev) => ({ ...prev, [key]: '' }))
+  }
 
   if (pLoading || tLoading) return <PageSpinner />
   if (!project) return (
@@ -77,14 +82,44 @@ export default function ProjectDetail() {
     return acc
   }, {})
 
-  const openAdd = () => { reset({ division: CSI_DIVISIONS[0], unit: 'SF', quantity: '' }); setEditingItem(null); setShowAddItem(true) }
-  const openEdit = (item) => { reset(item); setEditingItem(item); setShowAddItem(true) }
+  const openAdd = () => {
+    setFields(BLANK_ITEM)
+    setErrors({})
+    setEditingItem(null)
+    setShowAddItem(true)
+  }
 
-  const onSubmit = async (data) => {
-    if (editingItem) await updateItem(editingItem.id, data)
-    else await addItem(data)
+  const openEdit = (item) => {
+    setFields({
+      division: item.division,
+      description: item.description,
+      quantity: String(item.quantity),
+      unit: item.unit,
+      notes: item.notes ?? '',
+    })
+    setErrors({})
+    setEditingItem(item)
+    setShowAddItem(true)
+  }
+
+  const validate = () => {
+    const next = {}
+    if (!fields.description.trim()) next.description = 'Description is required'
+    if (fields.quantity === '' || isNaN(Number(fields.quantity))) next.quantity = 'Valid quantity is required'
+    else if (Number(fields.quantity) < 0) next.quantity = 'Must be ≥ 0'
+    return next
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    setSubmitting(true)
+    const payload = { ...fields, quantity: Number(fields.quantity) }
+    if (editingItem) await updateItem(editingItem.id, payload)
+    else await addItem(payload)
+    setSubmitting(false)
     setShowAddItem(false)
-    reset()
   }
 
   const handleDelete = async () => {
@@ -194,15 +229,16 @@ export default function ProjectDetail() {
         onClose={() => setShowAddItem(false)}
         title={editingItem ? 'Edit Takeoff Item' : 'Add Takeoff Item'}
       >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Select label="CSI Division *" {...register('division', { required: true })}>
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <Select label="CSI Division *" value={fields.division} onChange={set('division')}>
             {CSI_DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
           </Select>
           <Input
             label="Description *"
             placeholder="e.g. 4000 PSI Concrete Slab on Grade"
-            error={errors.description?.message}
-            {...register('description', { required: 'Description is required' })}
+            value={fields.description}
+            onChange={set('description')}
+            error={errors.description}
           />
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -210,18 +246,25 @@ export default function ProjectDetail() {
               type="number"
               step="any"
               placeholder="0"
-              error={errors.quantity?.message}
-              {...register('quantity', { required: 'Required', min: { value: 0, message: 'Must be ≥ 0' } })}
+              value={fields.quantity}
+              onChange={set('quantity')}
+              error={errors.quantity}
             />
-            <Select label="Unit *" {...register('unit', { required: true })}>
+            <Select label="Unit *" value={fields.unit} onChange={set('unit')}>
               {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </Select>
           </div>
-          <Textarea label="Notes" placeholder="Additional notes or conditions…" rows={2} {...register('notes')} />
+          <Textarea
+            label="Notes"
+            placeholder="Additional notes or conditions…"
+            rows={2}
+            value={fields.notes}
+            onChange={set('notes')}
+          />
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={() => setShowAddItem(false)}>Cancel</Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Saving…' : editingItem ? 'Update Item' : 'Add Item'}
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Saving…' : editingItem ? 'Update Item' : 'Add Item'}
             </Button>
           </div>
         </form>

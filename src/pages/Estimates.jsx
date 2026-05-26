@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
 import { PlusIcon, CalculatorIcon } from '@heroicons/react/24/outline'
 import { useEstimates } from '@/hooks/useEstimates'
 import { useProjects } from '@/hooks/useProjects'
@@ -24,19 +23,41 @@ export default function Estimates() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
-    defaultValues: {
-      status: 'draft',
-      overhead_percent: 10,
-      profit_percent: 10,
-      project_id: preselectedProject,
-    },
-  })
+  const BLANK = {
+    name: '', project_id: preselectedProject, status: 'draft',
+    overhead_percent: '10', profit_percent: '10', notes: '',
+  }
+  const [fields, setFields] = useState(BLANK)
+  const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
 
-  const onSubmit = async (data) => {
-    await createEstimate({ ...data, overhead_percent: Number(data.overhead_percent), profit_percent: Number(data.profit_percent) })
-    reset()
-    setShowModal(false)
+  const set = (key) => (e) => {
+    setFields((prev) => ({ ...prev, [key]: e.target.value }))
+    setErrors((prev) => ({ ...prev, [key]: '' }))
+  }
+
+  const openModal = () => { setFields(BLANK); setErrors({}); setShowModal(true) }
+  const closeModal = () => setShowModal(false)
+
+  const validate = () => {
+    const next = {}
+    if (!fields.name.trim()) next.name = 'Estimate name is required'
+    if (!fields.project_id) next.project_id = 'Please select a project'
+    return next
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
+    setSubmitting(true)
+    await createEstimate({
+      ...fields,
+      overhead_percent: Number(fields.overhead_percent),
+      profit_percent: Number(fields.profit_percent),
+    })
+    setSubmitting(false)
+    closeModal()
   }
 
   const filtered = estimates.filter((e) => {
@@ -55,7 +76,7 @@ export default function Estimates() {
           <h2 className="page-title">Estimates</h2>
           <p className="text-xs text-gray-500 mt-0.5">{estimates.length} total estimate{estimates.length !== 1 ? 's' : ''}</p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
+        <Button onClick={openModal}>
           <PlusIcon className="h-4 w-4" />
           New Estimate
         </Button>
@@ -92,7 +113,7 @@ export default function Estimates() {
             title={search ? 'No results' : 'No estimates yet'}
             description={search ? 'Try a different search.' : 'Create an estimate to start tracking costs.'}
             action={!search && (
-              <Button onClick={() => setShowModal(true)}>
+              <Button onClick={openModal}>
                 <PlusIcon className="h-4 w-4" />
                 New Estimate
               </Button>
@@ -136,20 +157,28 @@ export default function Estimates() {
       </div>
 
       {/* New Estimate Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="New Estimate">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <Modal open={showModal} onClose={closeModal} title="New Estimate">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <Input
             label="Estimate Name *"
             placeholder="Base Bid – Structural Package"
-            error={errors.name?.message}
-            {...register('name', { required: 'Name is required' })}
+            value={fields.name}
+            onChange={set('name')}
+            error={errors.name}
           />
-          <Select label="Project *" error={errors.project_id?.message} {...register('project_id', { required: 'Select a project' })}>
+          <Select
+            label="Project *"
+            value={fields.project_id}
+            onChange={set('project_id')}
+            error={errors.project_id}
+          >
             <option value="">— Select a project —</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
-          <Select label="Status" {...register('status')}>
-            {ESTIMATE_STATUSES.map((s) => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+          <Select label="Status" value={fields.status} onChange={set('status')}>
+            {ESTIMATE_STATUSES.map((s) => (
+              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+            ))}
           </Select>
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -158,7 +187,8 @@ export default function Estimates() {
               step="0.1"
               min="0"
               max="100"
-              {...register('overhead_percent')}
+              value={fields.overhead_percent}
+              onChange={set('overhead_percent')}
             />
             <Input
               label="Profit %"
@@ -166,14 +196,21 @@ export default function Estimates() {
               step="0.1"
               min="0"
               max="100"
-              {...register('profit_percent')}
+              value={fields.profit_percent}
+              onChange={set('profit_percent')}
             />
           </div>
-          <Textarea label="Notes" placeholder="Scope notes, exclusions…" rows={2} {...register('notes')} />
+          <Textarea
+            label="Notes"
+            placeholder="Scope notes, exclusions…"
+            rows={2}
+            value={fields.notes}
+            onChange={set('notes')}
+          />
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating…' : 'Create Estimate'}
+            <Button type="button" variant="secondary" onClick={closeModal}>Cancel</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Creating…' : 'Create Estimate'}
             </Button>
           </div>
         </form>
