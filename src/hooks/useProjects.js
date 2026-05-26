@@ -21,16 +21,31 @@ export function useProjects() {
   useEffect(() => { fetchProjects() }, [fetchProjects])
 
   const createProject = async (fields) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-    const { data, error } = await supabase
+    console.log('[createProject] called with fields:', fields)
+
+    const authResult = await supabase.auth.getUser()
+    console.log('[createProject] auth.getUser() result:', authResult)
+
+    const user = authResult?.data?.user
+    if (!user) {
+      console.error('[createProject] no authenticated user — authResult:', authResult)
+      throw new Error('Not authenticated')
+    }
+
+    const payload = { ...fields, user_id: user.id }
+    console.log('[createProject] inserting payload:', payload)
+
+    const result = await supabase
       .from('projects')
-      .insert([{ ...fields, user_id: user.id }])
+      .insert([payload])
       .select()
       .single()
-    if (error) throw error
-    setProjects((prev) => [data, ...prev])
-    return data
+
+    console.log('[createProject] insert result — data:', result.data, '| error:', result.error)
+
+    if (result.error) throw result.error
+    setProjects((prev) => [result.data, ...prev])
+    return result.data
   }
 
   const updateProject = async (id, fields) => {
