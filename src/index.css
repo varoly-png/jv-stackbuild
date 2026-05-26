@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply h-full;
+  }
+
+  body {
+    @apply h-full bg-brand-dark text-white antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  #root {
+    @apply h-full;
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-brand-dark;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+  }
+
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+  }
+}
+
+@layer components {
+  .form-input {
+    @apply w-full rounded-lg border border-surface-border bg-surface px-3 py-2.5 text-sm text-white
+           placeholder-gray-500 outline-none transition-colors
+           focus:border-brand-orange focus:ring-1 focus:ring-brand-orange;
+  }
+
+  .form-select {
+    @apply form-input cursor-pointer;
+  }
+
+  .form-label {
+    @apply block text-xs font-medium uppercase tracking-wider text-gray-400 mb-1.5;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-orange px-4 py-2.5
+           text-sm font-semibold text-white transition-all
+           hover:bg-brand-orange-light active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-surface-border
+           bg-surface px-4 py-2.5 text-sm font-medium text-gray-300 transition-all
+           hover:border-gray-500 hover:text-white active:scale-95 disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2
+           text-sm font-medium text-gray-400 transition-all
+           hover:bg-surface hover:text-white active:scale-95;
+  }
+
+  .card {
+    @apply rounded-xl border border-surface-border bg-surface p-5;
+  }
+
+  .stat-card {
+    @apply card flex flex-col gap-1;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .table-row {
+    @apply border-b border-surface-border transition-colors hover:bg-surface-raised;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-400
+           transition-all hover:bg-surface hover:text-white;
+  }
+
+  .sidebar-link.active {
+    @apply bg-brand-orange/10 text-brand-orange;
+  }
+
+  .page-header {
+    @apply flex items-center justify-between border-b border-surface-border px-6 py-4;
+  }
+
+  .page-title {
+    @apply text-xl font-bold text-white;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-white;
+  }
+
+  .divider {
+    @apply border-t border-surface-border;
+  }
+}
+
+@layer utilities {
+  .text-muted {
+    @apply text-gray-400;
+  }
+
+  .ring-orange {
+    @apply ring-1 ring-brand-orange;
+  }
+}
