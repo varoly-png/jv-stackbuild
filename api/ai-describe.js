@@ -1,6 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-const SYSTEM_PROMPT =
+const PROMPT =
   'You are a construction estimator specializing in Florida construction costs. ' +
   'Given a plain-English description of a construction project or task, generate a detailed materials and labor breakdown. ' +
   'Return ONLY a valid JSON array with no markdown, no code fences, no explanation. ' +
@@ -14,22 +14,14 @@ export default async function handler(req, res) {
   const { description } = req.body
   if (!description?.trim()) return res.status(400).json({ error: 'description required' })
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
   try {
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: `Generate a construction materials and labor breakdown for: ${description}`,
-        },
-      ],
-    })
-
-    const raw = message.content[0].text.trim()
+    const result = await model.generateContent(
+      `${PROMPT}\n\nGenerate a construction materials and labor breakdown for: ${description}`
+    )
+    const raw = result.response.text().trim()
     const jsonMatch = raw.match(/\[[\s\S]*\]/)
     if (!jsonMatch) throw new Error('No JSON array found in response')
     const items = JSON.parse(jsonMatch[0])
