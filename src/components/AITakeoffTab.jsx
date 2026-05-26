@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react'
 import { ArrowUpTrayIcon, SparklesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { Button } from '@/components/UI/Button'
-import { Input } from '@/components/UI/Input'
 import { formatCurrency } from '@/utils/formatters'
 
 const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
@@ -35,13 +34,20 @@ export function AITakeoffTab({ onAddItems }) {
     handleFile(e.dataTransfer.files[0])
   }
 
+  const readAsBase64 = (f) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result.split(',')[1])
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsDataURL(f)
+    })
+
   const analyse = async () => {
     if (!file) return
     setLoading(true)
     setError('')
     try {
-      const buffer = await file.arrayBuffer()
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+      const base64 = await readAsBase64(file)
       const res = await fetch('/api/ai-vision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
